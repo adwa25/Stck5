@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Stickman RPG Game</title>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    canvas {
+      border: 2px solid #fff;
+      background-size: cover;
+      background-repeat: no-repeat;
+    }
+    #adminPanel {
+      margin-top: 10px;
+    }
+    button {
+      margin: 5px;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="gameCanvas" width="800" height="600"></canvas>
+  <div id="adminPanel">
+    <button onclick="teleport()">Teleport</button>
+    <button onclick="heal()">Heal</button>
+    <button onclick="spawnItem()">Spawn</button>
+    <button onclick="switchMap()">Ganti Map</button>
+    <button onclick="fireBullet()">Tembak</button>
+    <button onclick="switchWeapon()">Ganti Senjata</button>
+  </div>
+  <script>
+    const canvas = document.getElementById("gameCanvas");
+    const ctx = canvas.getContext("2d");
+    const backgrounds = [
+      'linear-gradient(to bottom, #003, #001)',
+      'linear-gradient(to right, #050, #030)',
+      'linear-gradient(to left, #300, #100)'
+    ];
+    let bgIndex = 0;
+    canvas.style.background = backgrounds[bgIndex];
+
+    const shootAudio = new Audio('https://cdn.pixabay.com/download/audio/2022/03/16/audio_f49b99c45a.mp3?filename=laser-shoot-81267.mp3');
+    const hitAudio = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_7180ddbc5f.mp3?filename=hitmarker-69841.mp3');
+    const teleportAudio = new Audio('https://cdn.pixabay.com/download/audio/2022/03/15/audio_ebfa93196e.mp3?filename=whoosh-transition-64653.mp3');
+
+    let player = { x: 400, y: 300, hp: 100, step: 0 };
+    let items = [];
+    let enemies = [
+      { x: 700, y: 500, hp: 3 },
+      { x: 100, y: 400, hp: 3 }
+    ];
+    let bullets = [];
+    let weapon = 'pistol';
+
+    function drawStickman(x, y, step) {
+      ctx.beginPath();
+      ctx.arc(x + 16, y, 10, 0, Math.PI * 2);
+      ctx.fillStyle = "cyan";
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(x + 16, y + 10);
+      ctx.lineTo(x + 16, y + 40);
+      ctx.strokeStyle = "cyan";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x, y + 20);
+      ctx.lineTo(x + 32, y + 20);
+      ctx.stroke();
+      ctx.beginPath();
+      let offset = step % 2 === 0 ? 5 : -5;
+      ctx.moveTo(x + 16, y + 40);
+      ctx.lineTo(x, y + 60 + offset);
+      ctx.moveTo(x + 16, y + 40);
+      ctx.lineTo(x + 32, y + 60 - offset);
+      ctx.stroke();
+    }
+
+    function drawHealthBar(x, y, hp, maxHp) {
+      const width = 32;
+      const height = 5;
+      const ratio = hp / maxHp;
+      ctx.fillStyle = 'red';
+      ctx.fillRect(x, y - 10, width, height);
+      ctx.fillStyle = 'lime';
+      ctx.fillRect(x, y - 10, width * ratio, height);
+    }
+
+    function update() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      player.x = Math.max(0, Math.min(canvas.width - 32, player.x));
+      player.y = Math.max(0, Math.min(canvas.height - 60, player.y));
+      drawStickman(player.x, player.y, player.step);
+
+      ctx.fillStyle = "yellow";
+      items.forEach(item => ctx.fillRect(item.x, item.y, 16, 16));
+
+      enemies.forEach(enemy => {
+        drawHealthBar(enemy.x, enemy.y, enemy.hp, 3);
+        ctx.fillStyle = "red";
+        ctx.fillRect(enemy.x, enemy.y, 32, 32);
+        let dx = player.x - enemy.x;
+        let dy = player.y - enemy.y;
+        let dist = Math.hypot(dx, dy);
+        if (dist > 2) {
+          enemy.x += dx / dist * 1.0;
+          enemy.y += dy / dist * 1.0;
+        }
+      });
+
+      ctx.fillStyle = "white";
+      bullets.forEach((b, i) => {
+        b.x += b.vx;
+        b.y += b.vy;
+        ctx.fillRect(b.x, b.y, 6, 6);
+        enemies.forEach((e, j) => {
+          if (Math.abs(b.x - e.x) < 20 && Math.abs(b.y - e.y) < 20) {
+            e.hp--;
+            bullets.splice(i, 1);
+            hitAudio.play();
+            if (e.hp <= 0) enemies.splice(j, 1);
+          }
+        });
+      });
+    }
+
+    function gameLoop() {
+      update();
+      requestAnimationFrame(gameLoop);
+    }
+
+    document.addEventListener("keydown", (e) => {
+      switch (e.key) {
+        case "w": player.y -= 5; player.step++; break;
+        case "s": player.y += 5; player.step++; break;
+        case "a": player.x -= 5; player.step++; break;
+        case "d": player.x += 5; player.step++; break;
+      }
+    });
+
+    function teleport() {
+      teleportAudio.play();
+      player.x = Math.random() * (canvas.width - 32);
+      player.y = Math.random() * (canvas.height - 60);
+    }
+
+    function heal() {
+      player.hp = 100;
+      alert("Player healed!");
+    }
+
+    function spawnItem() {
+      items.push({ x: player.x + 40, y: player.y });
+    }
+
+    function switchMap() {
+      bgIndex = (bgIndex + 1) % backgrounds.length;
+      canvas.style.background = backgrounds[bgIndex];
+    }
+
+    function fireBullet() {
+      shootAudio.play();
+      let speed = 5;
+      if (weapon === 'shotgun') {
+        for (let i = -1; i <= 1; i++) {
+          bullets.push({ x: player.x + 16, y: player.y + 20, vx: speed, vy: i });
+        }
+      } else if (weapon === 'laser') {
+        bullets.push({ x: player.x + 16, y: player.y + 20, vx: speed * 2, vy: 0 });
+      } else {
+        bullets.push({ x: player.x + 16, y: player.y + 20, vx: speed, vy: 0 });
+      }
+    }
+
+    function switchWeapon() {
+      const types = ['pistol', 'shotgun', 'laser'];
+      let current = types.indexOf(weapon);
+      weapon = types[(current + 1) % types.length];
+      alert('Senjata: ' + weapon);
+    }
+
+    gameLoop();
+  </script>
+</body>
+</html>
